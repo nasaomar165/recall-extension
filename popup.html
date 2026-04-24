@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1">
+<title>Recall — Memory Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;400;500;600;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f13;
+    --bg-raised: #1a1a22;
+    --bg-card: #22222e;
+    --bg-card-hover: #2a2a38;
+    --fg: #eae8e4;
+    --fg-muted: #8a8895;
+    --fg-dim: #5a586a;
+    --accent: #e8a849;
+    --accent-glow: rgba(232, 168, 73, 0.15);
+    --accent-soft: rgba(232, 168, 73, 0.08);
+    --note-color: #5bc4a0;
+    --reminder-color: #e86b5a;
+    --bookmark-color: #6ba3e8;
+    --border: rgba(255,255,255,0.06);
+    --radius: 16px;
+    --radius-sm: 10px;
+    --radius-xs: 6px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    width: 400px; /* Fixed width for extension popup */
+    height: 550px; /* Fixed height for extension popup */
+    overflow: hidden;
+    position: relative;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: -30%; left: -20%;
+    width: 60vw; height: 60vw;
+    background: radial-gradient(circle, rgba(232,168,73,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+    animation: ambientDrift 20s ease-in-out infinite alternate;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    bottom: -20%; right: -20%;
+    width: 50vw; height: 50vw;
+    background: radial-gradient(circle, rgba(107,163,232,0.04) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+    animation: ambientDrift2 25s ease-in-out infinite alternate;
+  }
+
+  @keyframes ambientDrift {
+    0% { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(10vw, 10vh) scale(1.2); }
+  }
+  @keyframes ambientDrift2 {
+    0% { transform: translate(0, 0) scale(1.1); }
+    100% { transform: translate(-8vw, -6vh) scale(0.9); }
+  }
+
+  .app-shell {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 20px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--fg-muted);
+  }
+
+  .app-header { padding: 4px 20px 12px; }
+  .app-header h1 { font-size: 28px; font-weight: 900; letter-spacing: -1px; line-height: 1.1; }
+  .app-header h1 span { color: var(--accent); }
+  .app-header .subtitle { font-size: 13px; color: var(--fg-muted); margin-top: 2px; font-weight: 400; }
+
+  .search-wrap { padding: 0 20px 10px; }
+  .search-bar {
+    display: flex; align-items: center; background: var(--bg-raised);
+    border: 1px solid var(--border); border-radius: 50px;
+    padding: 0 16px; height: 42px; gap: 10px;
+    transition: border-color var(--transition), box-shadow var(--transition);
+  }
+  .search-bar:focus-within { border-color: rgba(232,168,73,0.3); box-shadow: 0 0 0 3px var(--accent-glow); }
+  .search-bar .material-icons-round { color: var(--fg-dim); font-size: 20px; }
+  .search-bar input { flex: 1; background: none; border: none; outline: none; color: var(--fg); font-family: inherit; font-size: 13px; }
+  .search-bar input::placeholder { color: var(--fg-dim); }
+  .search-clear { background: none; border: none; color: var(--fg-dim); cursor: pointer; display: none; padding: 2px; }
+  .search-clear.visible { display: block; }
+
+  .stats-row { display: flex; gap: 8px; padding: 0 20px 12px; overflow-x: auto; scrollbar-width: none; }
+  .stats-row::-webkit-scrollbar { display: none; }
+  .stat-chip {
+    display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 50px;
+    font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer;
+    transition: all var(--transition); border: 1px solid var(--border);
+    background: var(--bg-raised); color: var(--fg-muted); flex-shrink: 0;
+  }
+  .stat-chip .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .stat-chip.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .stat-chip .count { font-weight: 700; font-size: 13px; }
+
+  .tags-filter { display: flex; gap: 6px; padding: 0 20px 10px; overflow-x: auto; scrollbar-width: none; }
+  .tags-filter::-webkit-scrollbar { display: none; }
+  .tag-pill {
+    padding: 5px 10px; border-radius: 50px; font-size: 11px; font-weight: 500;
+    white-space: nowrap; cursor: pointer; transition: all var(--transition);
+    border: 1px solid var(--border); background: var(--bg-card); color: var(--fg-muted); flex-shrink: 0;
+  }
+  .tag-pill.active { border-color: var(--accent); background: var(--accent-glow); color: var(--accent); }
+
+  .content-area { flex: 1; padding: 0 20px; overflow-y: auto; }
+
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; text-align: center; }
+  .empty-state .material-icons-round { font-size: 48px; color: var(--fg-dim); margin-bottom: 12px; opacity: 0.5; }
+  .empty-state h3 { font-size: 16px; font-weight: 600; color: var(--fg-muted); margin-bottom: 4px; }
+  .empty-state p { font-size: 12px; color: var(--fg-dim); max-width: 220px; line-height: 1.4; }
+
+  .card-list { display: flex; flex-direction: column; gap: 10px; padding-bottom: 70px; }
+
+  .item-card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px; cursor: pointer; transition: all var(--transition);
+    position: relative; overflow: hidden; animation: cardIn 0.35s ease-out both;
+  }
+  .item-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 0 3px 3px 0; }
+  .item-card[data-type="note"]::before { background: var(--note-color); }
+  .item-card[data-type="reminder"]::before { background: var(--reminder-color); }
+  .item-card[data-type="bookmark"]::before { background: var(--bookmark-color); }
+  .item-card:active { transform: scale(0.98); background: var(--bg-card-hover); }
+
+  @keyframes cardIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 4px; }
+  .card-type-badge {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 7px; border-radius: var(--radius-xs);
+  }
+  .card-type-badge.note { background: rgba(91,196,160,0.12); color: var(--note-color); }
+  .card-type-badge.reminder { background: rgba(232,107,90,0.12); color: var(--reminder-color); }
+  .card-type-badge.bookmark { background: rgba(107,163,232,0.12); color: var(--bookmark-color); }
+  .card-type-badge .material-icons-round { font-size: 11px; }
+
+  .card-menu-btn {
+    background: none; border: none; color: var(--fg-dim); cursor: pointer;
+    padding: 2px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; transition: all var(--transition); flex-shrink: 0;
+  }
+  .card-menu-btn:hover { color: var(--fg-muted); background: rgba(255,255,255,0.05); }
+
+  .card-title { font-size: 14px; font-weight: 600; line-height: 1.3; margin-bottom: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; padding-left: 2px; }
+  .card-preview { font-size: 12px; color: var(--fg-muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 8px; padding-left: 2px; }
+  .card-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .card-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+  .card-tag { font-size: 10px; color: var(--fg-dim); background: rgba(255,255,255,0.04); padding: 2px 6px; border-radius: 50px; }
+  .card-date { font-size: 10px; color: var(--fg-dim); white-space: nowrap; }
+  .card-reminder-time { font-size: 10px; color: var(--reminder-color); font-weight: 500; display: flex; align-items: center; gap: 3px; }
+  .card-reminder-time .material-icons-round { font-size: 12px; }
+  .card-reminder-time.overdue { color: #ff4444; }
+  .card-bookmark-url { font-size: 11px; color: var(--bookmark-color); display: flex; align-items: center; gap: 4px; margin-bottom: 6px; opacity: 0.8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 2px; }
+  .card-bookmark-url .material-icons-round { font-size: 12px; flex-shrink: 0; }
+
+  .context-menu { position: absolute; z-index: 1000; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px; box-shadow: var(--shadow); min-width: 140px; display: none; animation: menuIn 0.15s ease-out; }
+  .context-menu.visible { display: block; }
+  @keyframes menuIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+  .context-menu button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; background: none; border: none; color: var(--fg); font-family: inherit; font-size: 13px; cursor: pointer; border-radius: var(--radius-xs); transition: background var(--transition); }
+  .context-menu button:hover { background: rgba(255,255,255,0.05); }
+  .context-menu button .material-icons-round { font-size: 16px; color: var(--fg-muted); }
+  .context-menu button.danger { color: #e86b5a; }
+  .context-menu button.danger .material-icons-round { color: #e86b5a; }
+  .context-menu .menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+  .fab { position: absolute; bottom: 20px; right: 20px; width: 50px; height: 50px; border-radius: 50%; background: var(--accent); color: #0f0f13; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(232,168,73,0.35); z-index: 100; transition: all var(--transition); }
+  .fab:active { transform: scale(0.9); }
+  .fab .material-icons-round { font-size: 26px; }
+
+  .modal-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.7); z-index: 500; display: none; align-items: flex-end; justify-content: center; }
+  .modal-overlay.visible { display: flex; }
+  .bottom-sheet { background: var(--bg-raised); border-radius: 16px 16px 0 0; width: 100%; max-height: 85%; overflow-y: auto; padding: 10px 0 0; animation: sheetIn 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+  @keyframes sheetIn { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .sheet-handle { width: 32px; height: 4px; background: var(--fg-dim); border-radius: 4px; margin: 0 auto 12px; opacity: 0.4; }
+
+  .type-selector { display: flex; gap: 8px; padding: 0 16px 12px; }
+  .type-option { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border-radius: var(--radius-sm); border: 1.5px solid var(--border); background: var(--bg-card); cursor: pointer; transition: all var(--transition); font-family: inherit; color: var(--fg-muted); }
+  .type-option .material-icons-round { font-size: 20px; }
+  .type-option span { font-size: 11px; font-weight: 500; }
+  .type-option.selected { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .type-option[data-type="note"].selected { border-color: var(--note-color); background: rgba(91,196,160,0.08); color: var(--note-color); }
+  .type-option[data-type="reminder"].selected { border-color: var(--reminder-color); background: rgba(232,107,90,0.08); color: var(--reminder-color); }
+  .type-option[data-type="bookmark"].selected { border-color: var(--bookmark-color); background: rgba(107,163,232,0.08); color: var(--bookmark-color); }
+
+  .form-area { padding: 0 16px 20px; }
+  .form-group { margin-bottom: 12px; }
+  .form-group label { display: block; font-size: 11px; font-weight: 600; color: var(--fg-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .form-group input, .form-group textarea { width: 100%; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; color: var(--fg); font-family: inherit; font-size: 13px; outline: none; transition: border-color var(--transition), box-shadow var(--transition); resize: vertical; }
+  .form-group input:focus, .form-group textarea:focus { border-color: rgba(232,168,73,0.3); box-shadow: 0 0 0 3px var(--accent-glow); }
+  .form-group input::placeholder, .form-group textarea::placeholder { color: var(--fg-dim); }
+  .form-group textarea { min-height: 80px; line-height: 1.4; }
+  .form-group input[type="datetime-local"] { color-scheme: dark; }
+  .form-group .tags-input-wrap { display: flex; flex-wrap: wrap; gap: 4px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 8px; min-height: 38px; align-items: center; transition: border-color var(--transition), box-shadow var(--transition); }
+  .form-group .tags-input-wrap:focus-within { border-color: rgba(232,168,73,0.3); box-shadow: 0 0 0 3px var(--accent-glow); }
+  .form-tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; background: var(--accent-glow); border: 1px solid rgba(232,168,73,0.2); border-radius: 50px; font-size: 11px; color: var(--accent); font-weight: 500; }
+  .form-tag-chip button { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 13px; line-height: 1; padding: 0; display: flex; opacity: 0.7; }
+  .tags-text-input { flex: 1; min-width: 60px; background: none; border: none; outline: none; color: var(--fg); font-family: inherit; font-size: 12px; }
+  .tags-text-input::placeholder { color: var(--fg-dim); }
+
+  .form-actions { display: flex; gap: 8px; padding-top: 6px; }
+  .btn { flex: 1; padding: 10px 16px; border-radius: var(--radius-sm); border: none; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: all var(--transition); display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: #0f0f13; }
+  .btn-secondary { background: var(--bg-card); color: var(--fg-muted); border: 1px solid var(--border); }
+
+  .detail-content { padding: 0 16px 24px; }
+  .detail-title { font-size: 20px; font-weight: 700; line-height: 1.3; margin-bottom: 10px; }
+  .detail-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .detail-body { font-size: 13px; line-height: 1.6; color: var(--fg); white-space: pre-wrap; word-break: break-word; padding: 12px; background: var(--bg-card); border-radius: var(--radius-sm); border: 1px solid var(--border); }
+  .detail-url { display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--bookmark-color); font-size: 12px; margin-bottom: 12px; text-decoration: none; word-break: break-all; }
+  .detail-reminder-info { display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: rgba(232,107,90,0.06); border: 1px solid rgba(232,107,90,0.15); border-radius: var(--radius-sm); color: var(--reminder-color); font-size: 13px; font-weight: 500; margin-bottom: 12px; }
+  .detail-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .btn-danger { background: rgba(232,107,90,0.1); color: var(--reminder-color); border: 1px solid rgba(232,107,90,0.2); }
+
+  .confirm-dialog { position: absolute; inset: 0; z-index: 1500; display: none; align-items: center; justify-content: center; padding: 20px; background: rgba(0,0,0,0.7); }
+  .confirm-dialog.visible { display: flex; }
+  .confirm-box { background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; max-width: 280px; width: 100%; box-shadow: var(--shadow); animation: menuIn 0.2s ease-out; text-align: center; }
+  .confirm-box h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .confirm-box p { font-size: 12px; color: var(--fg-muted); margin-bottom: 16px; line-height: 1.4; }
+  .confirm-btns { display: flex; gap: 8px; }
+  .btn-sm { flex: 1; padding: 8px 14px; border-radius: var(--radius-sm); border: none; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: all var(--transition); }
+  .btn-sm:active { transform: scale(0.97); }
+  .btn-sm-cancel { background: var(--bg-card); color: var(--fg-muted); }
+  .btn-sm-danger { background: var(--reminder-color); color: #fff; }
+
+  .toast-container { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 2000; display: flex; flex-direction: column; gap: 6px; max-width: 320px; width: calc(100% - 40px); }
+  .toast { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; display: flex; align-items: center; gap: 8px; box-shadow: var(--shadow); animation: toastIn 0.3s ease-out; font-size: 13px; font-weight: 500; }
+  .toast.leaving { animation: toastOut 0.25s ease-in forwards; }
+  .toast .material-icons-round { font-size: 18px; flex-shrink: 0; }
+  .toast.success .material-icons-round { color: var(--note-color); }
+  .toast.error .material-icons-round { color: var(--reminder-color); }
+  .toast.info .material-icons-round { color: var(--bookmark-color); }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes toastOut { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-20px); } }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--fg-dim); border-radius: 4px; }
+
+  .notif-banner { margin: 0 20px 10px; padding: 10px 14px; background: var(--accent-glow); border: 1px solid rgba(232,168,73,0.2); border-radius: var(--radius-sm); display: none; align-items: center; gap: 8px; font-size: 12px; color: var(--accent); cursor: pointer; }
+  .notif-banner.visible { display: flex; }
+  .notif-banner .material-icons-round { font-size: 18px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<div class="app-shell">
+  <div class="status-bar">
+    <span id="clockDisplay">12:00</span>
+    <span id="dateDisplay">Mon, Jan 1</span>
+  </div>
+
+  <header class="app-header">
+    <h1>Rec<span>all</span></h1>
+    <p class="subtitle">Memory Assistant</p>
+  </header>
+
+  <div class="notif-banner" id="notifBanner" role="button" tabindex="0">
+    <span class="material-icons-round">notifications_active</span>
+    <span>Enable notifications for reminders</span>
+  </div>
+
+  <div class="search-wrap">
+    <div class="search-bar">
+      <span class="material-icons-round">search</span>
+      <input type="text" id="searchInput" placeholder="Search..." aria-label="Search items">
+      <button class="search-clear" id="searchClear" aria-label="Clear search">
+        <span class="material-icons-round" style="font-size:18px">close</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="stats-row" id="statsRow">
+    <div class="stat-chip active" data-filter="all" role="button" tabindex="0"><span class="count" id="countAll">0</span><span>All</span></div>
+    <div class="stat-chip" data-filter="note" role="button" tabindex="0"><span class="dot" style="background:var(--note-color)"></span><span class="count" id="countNote">0</span><span>Notes</span></div>
+    <div class="stat-chip" data-filter="reminder" role="button" tabindex="0"><span class="dot" style="background:var(--reminder-color)"></span><span class="count" id="countReminder">0</span><span>Reminders</span></div>
+    <div class="stat-chip" data-filter="bookmark" role="button" tabindex="0"><span class="dot" style="background:var(--bookmark-color)"></span><span class="count" id="countBookmark">0</span><span>Bookmarks</span></div>
+  </div>
+
+  <div class="tags-filter" id="tagsFilter"></div>
+
+  <main class="content-area" id="contentArea">
+    <div class="card-list" id="cardList"></div>
+  </main>
+</div>
+
+<button class="fab" id="fabBtn" aria-label="Create new item"><span class="material-icons-round">add</span></button>
+
+<div class="modal-overlay" id="formModal" role="dialog" aria-modal="true">
+  <div class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="type-selector" id="typeSelector">
+      <button class="type-option selected" data-type="note"><span class="material-icons-round">edit_note</span><span>Note</span></button>
+      <button class="type-option" data-type="reminder"><span class="material-icons-round">alarm</span><span>Reminder</span></button>
+      <button class="type-option" data-type="bookmark"><span class="material-icons-round">bookmark</span><span>Bookmark</span></button>
+    </div>
+    <form class="form-area" id="itemForm" autocomplete="off">
+      <input type="hidden" id="editId" value="">
+      <div class="form-group"><label for="itemTitle">Title</label><input type="text" id="itemTitle" placeholder="What to remember?" required maxlength="200"></div>
+      <div class="form-group" id="urlGroup" style="display:none"><label for="itemUrl">URL</label><input type="url" id="itemUrl" placeholder="https://example.com"></div>
+      <div class="form-group"><label for="itemContent">Content</label><textarea id="itemContent" placeholder="Details..."></textarea></div>
+      <div class="form-group" id="reminderTimeGroup" style="display:none"><label for="itemReminderTime">Reminder Time</label><input type="datetime-local" id="itemReminderTime"></div>
+      <div class="form-group"><label>Tags (Enter to add)</label><div class="tags-input-wrap" id="tagsInputWrap"><input type="text" class="tags-text-input" id="tagsTextInput" placeholder="Add tag..."></div></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" id="formCancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="formSubmit"><span class="material-icons-round" style="font-size:16px">check</span> Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="detailModal" role="dialog" aria-modal="true">
+  <div class="bottom-sheet">
+    <div class="sheet-handle"></div>
+    <div class="detail-content" id="detailContent"></div>
+  </div>
+</div>
+
+<div class="context-menu" id="contextMenu" role="menu">
+  <button data-action="view" role="menuitem"><span class="material-icons-round">visibility</span> View</button>
+  <button data-action="edit" role="menuitem"><span class="material-icons-round">edit</span> Edit</button>
+  <button data-action="copy" role="menuitem"><span class="material-icons-round">content_copy</span> Copy text</button>
+  <div class="menu-divider"></div>
+  <button data-action="delete" class="danger" role="menuitem"><span class="material-icons-round">delete</span> Delete</button>
+</div>
+
+<div class="confirm-dialog" id="confirmDialog">
+  <div class="confirm-box">
+    <h3>Delete this item?</h3>
+    <p>This action cannot be undone.</p>
+    <div class="confirm-btns">
+      <button class="btn-sm btn-sm-cancel" id="confirmCancel">Cancel</button>
+      <button class="btn-sm btn-sm-danger" id="confirmDelete">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+<!-- No external SQL libraries needed anymore -->
+<script src="popup.js"></script>
+</body>
+</html>
