@@ -1,5 +1,7 @@
 # Recall — Memory Assistant (Chrome Extension)
 A sleek, minimal Chrome Extension to save notes, reminders, and bookmarks directly in your browser. Built with vanilla HTML, CSS, and JavaScript. Data is stored securely using the browser's native localStorage.
+![Alt text](/Preview.png)
+
 
 ---
 
